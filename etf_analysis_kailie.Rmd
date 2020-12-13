@@ -36,7 +36,7 @@ etf_clean1 = etf %>% drop_na(ytd_return)  %>% mutate(investment_grade = rating_a
 
 ```{r}
 
-#data cleaning and train test split
+#data cleaning and train test split (keep this in for my model, its a little different from the other cleaning)
 
 etf_clean = select(etf_clean1, -legal_type, -rating_us_government, 
                  -category, -net_annual_expense_ratio_category, 
