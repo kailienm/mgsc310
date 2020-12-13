@@ -1,0 +1,151 @@
+Title: Project
+Dataset: ETF
+
+```{r}
+library(readr)
+library(psych)
+library(dplyr)
+library(tidyverse)
+library(forcats)
+library(corrplot)
+library('rsample')
+library('glmnet')
+library('glmnetUtils')
+library('broom')
+library("rsample")
+set.seed(1818)
+library('glmnet')
+library('glmnetUtils')
+library('forcats')
+library('coefplot')
+library('randomForest')
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+etf <- read.csv("~/Downloads/ETFs.csv", stringsAsFactors=TRUE)
+```
+
+
+```{r}
+#cleaning
+etf_clean1 = etf %>% drop_na(ytd_return)  %>% mutate(investment_grade = rating_aaa + rating_aa + rating_a + rating_bbb) %>% mutate(junk = rating_bb + rating_b + rating_below_b)
+```
+
+
+```{r}
+
+#data cleaning and train test split
+
+etf_clean = select(etf_clean1, -legal_type, -rating_us_government, 
+                 -category, -net_annual_expense_ratio_category, 
+                 -rating_aaa, -rating_aa, -rating_a, 
+                 -rating_bbb, -rating_bb, -rating_b,  -rating_below_b, -rating_others,
+                 -category_return_ytd, -category_return_1month, -category_return_3months,
+                 -category_return_1year, -category_return_3years, -category_return_5years,
+                 -category_return_10years, -category_alpha_3years, -category_alpha_5years,
+                 -category_alpha_10years, -category_beta_3years, -category_beta_5years,
+                 -category_beta_10years, -category_mean_annual_return_3years,
+                 -category_mean_annual_return_5years, -category_mean_annual_return_10years,
+                 -category_r_squared_3years, -category_r_squared_5years,
+                 -category_r_squared_10years, -category_standard_deviation_3years,
+                 -category_standard_deviation_5years, -category_standard_deviation_10years,
+                 -category_sharpe_ratio_3years, -category_sharpe_ratio_5years,
+                 -category_sharpe_ratio_10years, -category_sharpe_ratio_3years, 
+                 -category_sharpe_ratio_5years, -category_sharpe_ratio_10years, 
+                 -category_treynor_ratio_3years, -category_treynor_ratio_5years,
+                 -category_treynor_ratio_10years, -junk, -fund_treynor_ratio_3years,-fund_name,-fund_extended_name, -fund_family,)
+
+etf_train <- etf_clean %>% select(-fund_return_ytd, -fund_mean_annual_return_10years, -fund_mean_annual_return_3years, -fund_mean_annual_return_5years)
+
+etf_split <- initial_split(etf_lasso, p = 0.8)
+etf_train <- training(etf_split)
+etf_test <- testing(etf_split)
+
+#elasticnet
+
+#select alpha value  
+alpha_list <- seq(0.1,1, by = 0.1)
+
+enet_fit <- cva.glmnet(ytd_return ~ ., data = etf_train, alpha = alpha_list)
+
+minlossplot(enet_fit, 
+            cv.type = "min")
+
+
+#identify lambda value
+enet_fit1 <- cv.glmnet(ytd_return ~ ., data = etf_train, alpha = 0.3)
+plot(enet_fit1)
+optimal_lambda <- enet_fit1$lambda.min
+print(optimal_lambda)
+
+#run model with selected alpha and lambda values
+enet_fit2 <- glmnet(ytd_return ~ ., data = etf_train, 
+                      alpha = 0.3,lambda = 0.187906)
+coef(enet_fit2)
+
+#produce training rsq
+etf_trainn <- na.omit(etf_train)
+actual1 <- data.frame(actual1)
+
+actual1 <- etf_trainn$ytd_return 
+preds1 <- predict(enet_fit2, etf_train)
+rss <- sum((preds1 - actual1) ^ 2)
+tss <- sum((actual1 - mean(actual1)) ^ 2)
+rsq <- 1 - rss/tss
+print(rsq)
+
+#produce test rsq
+etf_test <- na.omit(etf_test)
+
+actual <- etf_test$ytd_return 
+preds <- predict(enet_fit2, etf_test)
+rss <- sum((preds - actual) ^ 2)
+tss <- sum((actual - mean(actual)) ^ 2)
+rsq <- 1 - rss/tss
+print(rsq)
+
+```
+
+
+```{r}
+#data visualization
+
+plot1 <- ggplot(data = etf_clean[etf_clean$investment != "",] , aes(price_earnings,ytd_return,color=investment)) + geom_point(alpha = 1/5) + xlim(3,50) + ylim(-25,100) +
+  labs(x = "Price/Earnings", y = "Year to Date Return", title = "Price/Earnings vs. YTD Return")
+plot(plot1)
+
+plot2 <- ggplot(data = etf_clean[etf_clean$investment != "",], aes(price_book,ytd_return,color=investment)) + geom_point(alpha = 1/5) + xlim(0.1,8)+ ylim(-25,100)+
+  labs(x = "Price/Book", y = "Year to Date Return", title = "Price/Book vs. YTD Return")
+plot(plot2)
+      
+plot3 <- ggplot(data = etf_clean[etf_clean$investment != "",], aes(price_sales,ytd_return,color=investment)) + geom_point(alpha = 1/5) + ylim(-25,100) +xlim(0.1,8) +
+  labs(x = "Price/Sales", y = "Year to Date Return", title = "Price/Sales vs. YTD Return")
+plot(plot3)
+
+plot4 <- ggplot(data = etf_clean[etf_clean$investment != "",], aes(price_cashflow,ytd_return,color=investment)) + geom_point(alpha = 1/5) + ylim(-25,100) + xlim(0.1,27) +
+  labs(x = "Price/Cash Flow", y = "Year to Date Return", title = "Price/Cash Flow vs. YTD Return")
+plot(plot4)
+
+plot5 <- ggplot(data = etf_clean[etf_clean$investment != "",], aes(portfolio_stocks,ytd_return)) + geom_point(alpha = 1/5) + geom_smooth() + ylim(-25, 100) + xlim(0.1,100) +
+  labs(x = "Price/Book", y = "Year to Date Return", title = "Price/Book vs. YTD Return")
+plot(plot5) 
+
+plot6 <- ggplot(data = etf_clean[etf_clean$fund_return_5years != 0, ], aes(ytd_return,fund_return_5years)) + geom_point(alpha = 1/5) + xlim(-50,50) + geom_smooth() +
+  labs(y = "Fund Return (5 Years)", x = "Year to Date Return", title = "Fund Return (5 Years) vs. YTD Return")
+plot(plot6) 
+
+plot7 <- ggplot(data = etf_clean[etf_clean$fund_beta_3years != 0, ], aes(ytd_return,fund_beta_3years)) + geom_point(alpha = 1/5) + geom_smooth() +ylim(-12.5,12.5) +
+  labs(y = "Fund Beta (3 Years)", x = "Year to Date Return", title = "Fund Beta (3 Years) vs. YTD Return")
+plot(plot7) 
+
+plot8 <- ggplot(data = etf_clean[etf_clean$investment != "", ], aes(investment,ytd_return)) + geom_boxplot() + geom_smooth() +ylim(-15,75) +
+  labs(x = "Investment", y = "Year to Date Return", title = "Investment vs. YTD Return")
+plot(plot8) 
+
+plot9 <- ggplot(data = etf_clean[etf_clean$size != "", ], aes(size,ytd_return)) + geom_boxplot() +ylim(-10,70) +
+  labs(x = "Size", y = "Year to Date Return", title = "Size vs. YTD Return")
+plot(plot9) 
+
+```
